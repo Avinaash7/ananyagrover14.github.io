@@ -1,42 +1,79 @@
 <?php
-  /**
-  * Requires the "PHP Email Form" library
-  * The "PHP Email Form" library is available only in the pro version of the template
-  * The library should be uploaded to: vendor/php-email-form/php-email-form.php
-  * For more info and help: https://bootstrapmade.com/php-email-form/
-  */
 
-  // Replace contact@example.com with your real receiving email address
-  $receiving_email_address = 'avinaash23@outlook.com';
+// configure
+$from = 'avinaash23@outlook.com'; // Replace it with Your Hosting Admin email. REQUIRED!
+$sendTo = 'mavinaash230102@gmail.com'; // Replace it with Your email. REQUIRED!
+$subject = 'New message from contact form';
+$fields = array('name' => 'Name', 'email' => 'Email', 'subject' => 'Subject', 'message' => 'Message'); // array variable name => Text to appear in the email. If you added or deleted a field in the contact form, edit this array.
+$okMessage = 'Contact form successfully submitted. Thank you, I will get back to you soon!';
+$errorMessage = 'There was an error while submitting the form. Please try again later';
 
-  if( file_exists($php_email_form = '../assets/vendor/php-email-form/php-email-form.php' )) {
-    include( $php_email_form );
-  } else {
-    die( 'Unable to load the "PHP Email Form" Library!');
-  }
+// let's do the sending
 
-  $contact = new PHP_Email_Form;
-  $contact->ajax = true;
-  
-  $contact->to = $receiving_email_address;
-  $contact->from_name = $_POST['name'];
-  $contact->from_email = $_POST['email'];
-  $contact->subject = $_POST['subject'];
+if(isset($_POST['g-recaptcha-response']) && !empty($_POST['g-recaptcha-response'])):
+    //your site secret key
+    $secret = '6LdqmCAUAAAAANONcPUkgVpTSGGqm60cabVMVaON';
+    //get verify response data
 
-  // Uncomment below code if you want to use SMTP to send emails. You need to enter your correct SMTP credentials
-  /*
-  $contact->smtp = array(
-    'host' => 'example.com',
-    'username' => 'example',
-    'password' => 'pass',
-    'port' => '587'
-  );
-  */
+    $c = curl_init('https://www.google.com/recaptcha/api/siteverify?secret='.$secret.'&response='.$_POST['g-recaptcha-response']);
+    curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
+    $verifyResponse = curl_exec($c);
 
-  $contact->add_message( $_POST['name'], 'From');
-  $contact->add_message( $_POST['email'], 'Email');
-  $contact->add_message( $_POST['message'], 'Message', 10);
+    $responseData = json_decode($verifyResponse);
+    if($responseData->success):
 
-mail($receiving_email_address, $subject, $from_name, $from_email) or die("Error!");
-  echo $contact->send();
-?>
+        try
+        {
+            $emailText = nl2br("You have new message from Contact Form\n");
+
+            foreach ($_POST as $key => $value) {
+
+                if (isset($fields[$key])) {
+                    $emailText .= nl2br("$fields[$key]: $value\n");
+                }
+            }
+
+            $headers = array('Content-Type: text/html; charset="UTF-8";',
+                'From: ' . $from,
+                'Reply-To: ' . $from,
+                'Return-Path: ' . $from,
+            );
+            
+            mail($sendTo, $subject, $emailText, implode("\n", $headers));
+
+            $responseArray = array('type' => 'success', 'message' => $okMessage);
+        }
+        catch (\Exception $e)
+        {
+            $responseArray = array('type' => 'danger', 'message' => $errorMessage);
+        }
+
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+            $encoded = json_encode($responseArray);
+
+            header('Content-Type: application/json');
+
+            echo $encoded;
+        }
+        else {
+            echo $responseArray['message'];
+        }
+
+    else:
+        $errorMessage = 'Robot verification failed, please try again.';
+        $responseArray = array('type' => 'danger', 'message' => $errorMessage);
+        $encoded = json_encode($responseArray);
+
+            header('Content-Type: application/json');
+
+            echo $encoded;
+    endif;
+else:
+    $errorMessage = 'Please click on the reCAPTCHA box.';
+    $responseArray = array('type' => 'danger', 'message' => $errorMessage);
+    $encoded = json_encode($responseArray);
+
+            header('Content-Type: application/json');
+
+            echo $encoded;
+endif;
